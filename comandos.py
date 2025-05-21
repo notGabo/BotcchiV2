@@ -1,5 +1,6 @@
 from discord.ext import commands
 from discord import embeds
+import spotifyhandler
 import discord
 import yt_handler
 import constantes
@@ -56,13 +57,18 @@ async def setup(bot):
         if arg is None:
             await ctx.send("Por favor, proporciona una canción o URL para reproducir.")
             return
-
-        # comprobar si es una url de spotify
-        if regex.match(constantes.SPOTIFY_REGEX, arg):
-            await ctx.send("No se puede reproducir canciones de Spotify.")
-            return
-
         query = "ytsearch:" + arg
+
+        if regex.match(constantes.SPOTIFY_REGEX, arg):
+            ctx.send("URL de Spotify detectada, obteniendo datos...")
+            datos = spotifyhandler.obterner_datos_url_spotify(arg)
+            if datos is None:
+                await ctx.send("No se pudo obtener la canción de Spotify.")
+                return
+            titulo_cancion = datos["titulo"]
+            autor_cancion = datos["artista"]
+            query = f"ytsearch: {titulo_cancion} {autor_cancion}"
+
         try:
             resultados = await yt_handler.buscador_ytdlp_async(query, yt_handler.ytdlp_opts(playlist=False))
             canciones = resultados.get("entries", [])
