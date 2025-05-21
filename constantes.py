@@ -14,4 +14,7 @@ BOT_PREFIX = '--'
 BOT_NAME= 'BotcchiV2'
 BOT_DESCRIPTION = 'Nuevo bot de musica escrito desde 0 con un engine propio'
 
+# Misc
+SPOTIFY_REGEX = r"^(https?://)?(www\.)?(spotify\.com|open\.spotify\.com)/.+$"
+
 
