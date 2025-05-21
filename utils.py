@@ -1,10 +1,7 @@
-def limpiar_argumentos_comandos(argumentos):
+def formatea_argumentos_comandos(argumentos):
     """
-    Limpia los argumentos de un comando, eliminando caracteres no deseados y convirtiendo a minúsculas.
+    Limpia los argumentos de un comando. Separandolos por coma
     """
-    # Eliminar caracteres no deseados
-    argumentos = argumentos.replace("'", "")
-    argumentos = argumentos.replace('"', "")
-    # Convertir a minúsculas
-    argumentos = argumentos.lower()
+    argumentos = argumentos.split(",")
+    print(argumentos)
     return argumentos
