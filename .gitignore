@@ -1,6 +1,6 @@
 __pycache__/
 .venv/
 .vscode/
-
+.cache/
 .env
 pyvenv.cfg
