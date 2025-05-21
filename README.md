@@ -5,7 +5,7 @@ Repositorio re escritura de codigo para el bot Botcchi escrito en python. Sin de
 ## Requisitos
 
 * Python 3.13.3 (No se ha probado en otras versiones)
-* ffmpeg
+* ffmpeg - setear su binario para ejecución de ambiente
 * git
 
 ## Instalación
