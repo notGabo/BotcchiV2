@@ -1,5 +1,10 @@
 import yt_dlp
 import asyncio
+from os import getenv
+from dotenv import load_dotenv
+load_dotenv()
+
+COOKIES_FILE = getenv("COOKIES_FILE")
 
 async def buscador_ytdlp_async(query,ydl_opts):
     loop = asyncio.get_event_loop()
@@ -19,5 +24,6 @@ def ytdlp_opts(playlist: bool | None):
         "format": "bestaudio/best",
         "noplaylist": playlist,
         "youtube_include_dash_manifest": False,
-        "youtubeinclude_hls_manifest": False
+        "youtubeinclude_hls_manifest": False,
+        "cookiefile": COOKIES_FILE,
     }

@@ -1,6 +1,7 @@
 __pycache__/
 .venv/
 .vscode/
-.cache/
+.cache
 .env
 pyvenv.cfg
+cookies.txt
