@@ -22,3 +22,4 @@ spotipy==2.25.1
 urllib3==2.4.0
 yarl==1.20.0
 yt-dlp==2025.4.30
+ytmusicapi==1.10.3
