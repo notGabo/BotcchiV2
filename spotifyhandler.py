@@ -15,7 +15,7 @@ auth_manager = SpotifyClientCredentials(
 sp = spotipy.Spotify(auth_manager=auth_manager)
 
 
-def obterner_datos_url_spotify(url):
+def obtener_datos_url_spotify(url):
     """
     Obtiene los datos de una canción de Spotify a partir de su URL.
     """

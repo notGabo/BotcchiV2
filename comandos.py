@@ -9,9 +9,11 @@ import constantes
 import regex
 import json
 import utils
+import asyncio
 
 
 queues = {}
+loop = asyncio.get_event_loop()
 
 # Comandos bot
 async def setup(bot):
@@ -95,8 +97,9 @@ async def setup(bot):
         # Si el argumento es una URL de Spotify, se modifica la query para llenarla con los datos proporcionados por el scrappy de spotify
         # Se utiliza el regex para validar si es una URL de Spotify
         if regex.match(constantes.SPOTIFY_REGEX, arg):
-            ctx.send("URL de Spotify detectada, obteniendo datos...")
-            datos = ytmusichandler.obterner_datos_url_ytmusic(arg)
+            print("URL de Spotify detectada, obteniendo datos...")
+            datos = spotifyhandler.obtener_datos_url_spotify(arg)
+
             if datos is None:
                 await ctx.send("No se pudo obtener la canción de YT Music.")
                 return
@@ -107,7 +110,7 @@ async def setup(bot):
         # Si el argumento es una URL de Youtube Music, se modifica la query para llenarla con los datos proporcionados por el scrappy de ytmusicapi
         # Se utiliza el regex para validar si es una URL de Youtube Music
         if regex.match(constantes.YTMUSIC_REGEX, arg):
-            ctx.send("URL de Youtube Music detectada, obteniendo datos...")
+            print("URL de Youtube Music detectada, obteniendo datos...")
             datos = ytmusichandler.obtener_datos_url_ytmusic(arg)
             if datos is None:
                 await ctx.send("No se pudo obtener la canción de Youtube Music.")
@@ -128,6 +131,7 @@ async def setup(bot):
                     is_playing=False,
                     voice_channel=ctx.author.voice.channel,
                     ctx=ctx,
+                    loop=loop,
                 )
             queue = queues[guild_id]
             queue.voice_client = ctx.voice_client or await ctx.author.voice.channel.connect()

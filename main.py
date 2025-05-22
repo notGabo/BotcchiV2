@@ -4,12 +4,9 @@ from sys import executable, argv
 from discord.ext import commands
 from discord import app_commands
 import comandos
-
 import constantes
 
-# Intenciones por defecto del bot
 intents = discord.Intents.default()
-# Habilitar la intención de mensajes
 intents.message_content = True
 intents.typing = True
 intents.presences = True
@@ -23,7 +20,7 @@ bot = commands.Bot(
 
 @bot.event
 async def setup_hook():
-    await comandos.setup(bot)
+    await comandos.setup(bot) # Logica del bot aqui
 
 @bot.event
 async def on_ready():
