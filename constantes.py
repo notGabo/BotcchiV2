@@ -14,8 +14,9 @@ BOT_PREFIX = '--'
 BOT_NAME= 'BotcchiV2'
 BOT_DESCRIPTION = 'Nuevo bot de musica escrito desde 0 con un engine propio'
 
-# Misc
+# url regex
 SPOTIFY_REGEX = r"^(https?://)?(www\.)?(spotify\.com|open\.spotify\.com)/.+$"
 YTMUSIC_REGEX = r"^(https?://)?(www\.)?(music\.youtube\.com|youtube\.com)/.+$"
+YT_REGEX = r"^(https?://)?(www\.)?(youtube\.com|youtu\.?be)/.+$"
 
 

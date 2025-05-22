@@ -1,7 +1,7 @@
 from discord.ext import commands
 from discord import embeds
-import spotifyhandler
-import ytmusichandler
+import urlhandlers.spotifyurlhandler as spotifyurlhandler
+import urlhandlers.yturlhandler as yturlhandler
 import queuehandler
 import discord
 import yt_handler
@@ -93,27 +93,21 @@ async def setup(bot):
 
         # Instancia la query con el argumento proporcionado
         query = "ytsearch:" + arg
+        use_direct_url = False
 
-        # Si el argumento es una URL de Spotify, se modifica la query para llenarla con los datos proporcionados por el scrappy de spotify
-        # Se utiliza el regex para validar si es una URL de Spotify
-        if regex.match(constantes.SPOTIFY_REGEX, arg):
+        # Si el argumento es una URL de Youtube, usarla directamente
+        if regex.match(constantes.YT_REGEX, arg) or regex.match(constantes.YTMUSIC_REGEX, arg):
+            print("URL de Youtube/YTMusic detectada, usando URL directamente...")
+            query = arg
+            use_direct_url = True
+
+        # Si el argumento es una URL de Spotify, se modifica la query para buscarla en YouTube
+        elif regex.match(constantes.SPOTIFY_REGEX, arg):
             print("URL de Spotify detectada, obteniendo datos...")
-            datos = spotifyhandler.obtener_datos_url_spotify(arg)
+            datos = spotifyurlhandler.obtener_datos_url_spotify(arg)
 
             if datos is None:
-                await ctx.send("No se pudo obtener la canción de YT Music.")
-                return
-            titulo_cancion = datos["titulo"]
-            autor_cancion = datos["artista"]
-            query = f"ytsearch: {titulo_cancion} {autor_cancion}"
-
-        # Si el argumento es una URL de Youtube Music, se modifica la query para llenarla con los datos proporcionados por el scrappy de ytmusicapi
-        # Se utiliza el regex para validar si es una URL de Youtube Music
-        if regex.match(constantes.YTMUSIC_REGEX, arg):
-            print("URL de Youtube Music detectada, obteniendo datos...")
-            datos = ytmusichandler.obtener_datos_url_ytmusic(arg)
-            if datos is None:
-                await ctx.send("No se pudo obtener la canción de Youtube Music.")
+                await ctx.send("No se pudo obtener la canción de Spotify.")
                 return
             titulo_cancion = datos["titulo"]
             autor_cancion = datos["artista"]
@@ -141,12 +135,15 @@ async def setup(bot):
 
         try:
             resultados = await yt_handler.buscador_ytdlp_async(query, yt_handler.ytdlp_opts(playlist=False))
-            canciones = resultados.get("entries", [])
-            if resultados is None or len(canciones) == 0:
-                await ctx.send("No se encontraron resultados.")
-                return
-
-            primera_cancion = canciones[0]
+             # Manejar los resultados de manera diferente si es URL directa o búsqueda
+            if use_direct_url:
+                primera_cancion = resultados  # Para URLs directas, el resultado está en el nivel superior
+            else:
+                canciones = resultados.get("entries", [])
+                if resultados is None or len(canciones) == 0:
+                    await ctx.send("No se encontraron resultados.")
+                    return
+                primera_cancion = canciones[0]
 
             # Se prepara el objeto de la canción a reproducir
             autor_cancion = primera_cancion.get("uploader", "Unknown")

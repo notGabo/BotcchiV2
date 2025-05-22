@@ -3,6 +3,8 @@ import json
 
 ytmusic = YTMusic()
 
+url = "https://www.youtube.com/watch?v=a46Pu9-QIto"
+
 def obtener_datos_url_ytmusic(url: str):
     """
     Obtiene los datos de una canción de YT Music a partir de su URL.
@@ -21,3 +23,5 @@ def obtener_datos_url_ytmusic(url: str):
         "url": url
     }
     return datos
+
+print(obtener_datos_url_ytmusic(url))
