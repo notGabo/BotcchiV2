@@ -95,4 +95,6 @@ class QueueHandler:
 
     def clear_queue(self):
         self.queue.clear()
+        self.current_song = None
+        self.now_playing = None
         self.is_playing = False

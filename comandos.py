@@ -1,6 +1,7 @@
 from discord.ext import commands
 from discord import embeds
 import spotifyhandler
+import ytmusichandler
 import queuehandler
 import discord
 import yt_handler
@@ -22,12 +23,17 @@ async def setup(bot):
             color=0x00ff00
         )
 
+        embed.add_field(name=f"⭕ PREFIJO: {constantes.BOT_PREFIX}", inline=False)
         embed.add_field(name=f"🔹comandos", value="Muestra este mensaje", inline=False)
         embed.add_field(name=f"🔹ping", value="Responde con 'Pong!'", inline=False)
-        embed.add_field(name=f"🔹play [canción o url]", value="Reproduce una canción", inline=False)
+        embed.add_field(name=f"🔹play [canción o url]", value="Reproduce una canción.", inline=False)
+        embed.add_field(name=f"🔹playlist [url]", value="Reproduce una lista de reproducción de Spotify o Youtube.", inline=False)
         embed.add_field(name=f"🔹skip", value="Pasa a la siguiente cancion en la cola", inline=False)
         embed.add_field(name=f"🔹stop", value="Desconecta al bot", inline=False)
         embed.add_field(name=f"🔹clear", value="Limpia la cola en caso de que hayan problemas", inline=False)
+        embed.add_field(name=f"🔹queue", value="Muestra la lista de canciones en la cola", inline=False)
+        embed.add_field(name=f"🔹np", value="Desconecta al bot", inline=False)
+
 
         embed.set_footer(text=f"Usa el prefijo {constantes.BOT_PREFIX} para los comandos de texto.")
 
@@ -64,7 +70,6 @@ async def setup(bot):
             await ctx.message.add_reaction("❗")
             return
         try:
-            # Utilizar la función stop() de la clase QueueHandler
             guild_id = ctx.guild.id
             if guild_id not in queues:
                 await ctx.send("No hay canciones en la cola.")
@@ -86,20 +91,32 @@ async def setup(bot):
         # Instancia la query con el argumento proporcionado
         query = "ytsearch:" + arg
 
-        # Si el argumento es una URL de Spotify, se modifica la query para llenarla con los datos proporiconados por el scrappy de spotify
+        # Si el argumento es una URL de Spotify, se modifica la query para llenarla con los datos proporcionados por el scrappy de spotify
         # Se utiliza el regex para validar si es una URL de Spotify
         if regex.match(constantes.SPOTIFY_REGEX, arg):
             ctx.send("URL de Spotify detectada, obteniendo datos...")
-            datos = spotifyhandler.obterner_datos_url_spotify(arg)
+            datos = ytmusichandler.obterner_datos_url_ytmusic(arg)
             if datos is None:
-                await ctx.send("No se pudo obtener la canción de Spotify.")
+                await ctx.send("No se pudo obtener la canción de YT Music.")
                 return
             titulo_cancion = datos["titulo"]
             autor_cancion = datos["artista"]
             query = f"ytsearch: {titulo_cancion} {autor_cancion}"
 
+        # Si el argumento es una URL de Youtube Music, se modifica la query para llenarla con los datos proporcionados por el scrappy de ytmusicapi
+        # Se utiliza el regex para validar si es una URL de Youtube Music
+        if regex.match(constantes.YTMUSIC_REGEX, arg):
+            ctx.send("URL de Youtube Music detectada, obteniendo datos...")
+            datos = ytmusichandler.obtener_datos_url_ytmusic(arg)
+            if datos is None:
+                await ctx.send("No se pudo obtener la canción de Youtube Music.")
+                return
+            titulo_cancion = datos["titulo"]
+            autor_cancion = datos["artista"]
+            query = f"ytsearch: {titulo_cancion} {autor_cancion}"
+
+        # Se instancia instancia la cola de canciones
         try:
-            # Declarar la queue
             guild_id = ctx.guild.id
             if guild_id not in queues:
                 queues[guild_id] = queuehandler.QueueHandler(
@@ -117,9 +134,6 @@ async def setup(bot):
             await ctx.send(f"Error al conectar al canal de voz: {e}")
             return
 
-
-
-        # Una vez obtenida la query, se procede a buscar la canción en YouTube
         try:
             resultados = await yt_handler.buscador_ytdlp_async(query, yt_handler.ytdlp_opts(playlist=False))
             canciones = resultados.get("entries", [])
@@ -146,6 +160,8 @@ async def setup(bot):
                 duration=duracion_cancion,
                 requester=requester,
             )
+
+            # Se añade el objeto de canción a la cola
             queue.add_cancion(cancion)
             await ctx.send(f"Se ha añadido la canción a la cola: {cancion}")
             await ctx.message.add_reaction("✅")
@@ -153,35 +169,8 @@ async def setup(bot):
         except yt_handler.YTError as e:
             await ctx.send(f"Error al buscar la canción: {e}")
 
-
-
-        # ffmpeg_opts = {
-        #     "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
-        #     "options": "-vn",
-        # }
-
-        # if ctx.author.voice is None:
-        #     await ctx.message.add_reaction("❌")
-        #     await ctx.send("Necesitas estar en un canal de voz para usar este comando")
-        #     return
-
-        # voice_channel = ctx.author.voice.channel
-        # if ctx.voice_client is None:
-        #     await voice_channel.connect()
-
-        # fuente = discord.FFmpegPCMAudio(url_ytdlp, **ffmpeg_opts)
-        # voice_client = ctx.voice_client or await voice_channel.connect()
-        # voice_client.play(fuente, after=lambda e: print(f"Error al reproducir: {e}") if e else None)
-
-        # await ctx.message.add_reaction("✅")
-        # await ctx.send(f"Reproduciendo: {cancion}")
-
     @bot.command(name="skip", aliases=["saltar"])
     async def skip_music(ctx):
-        """
-        Salta la canción actual y reproduce la siguiente en la cola.
-        Usando de base la clase de QueueHandler, debe llamar a la funcion play_next()
-        """
         guild_id = ctx.guild.id
         if guild_id not in queues:
             await ctx.send("No hay canciones en la cola.")
@@ -196,10 +185,6 @@ async def setup(bot):
 
     @bot.command(name="queue", aliases=["lista", "cola"])
     async def queue_music(ctx):
-        """
-        Muestra la lista de canciones en la cola.
-        Usando de base la clase de QueueHandler, debe llamar a la funcion get_queue()
-        """
         guild_id = ctx.guild.id
         if guild_id not in queues:
             await ctx.send("No hay canciones en la cola.")
@@ -214,14 +199,10 @@ async def setup(bot):
 
     @bot.command(name="clear", aliases=["limpiar"])
     async def clear_queue(ctx):
-        """
-        Limpia la cola de canciones.
-        Usando de base la clase de QueueHandler, debe llamar a la funcion stop()
-        """
         guild_id = ctx.guild.id
         if guild_id not in queues:
             await ctx.send("No hay canciones en la cola.")
             return
         queue = queues[guild_id]
-        queue.stop()
+        queue.clear_queue()
         await ctx.send("Cola de canciones limpiada.")

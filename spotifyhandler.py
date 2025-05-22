@@ -24,7 +24,6 @@ def obterner_datos_url_spotify(url):
         return {
             "titulo": track["name"],
             "artista": track["artists"][0]["name"],
-            "album": track["album"]["name"],
             "url": track["external_urls"]["spotify"]
         }
     except Exception as e:
