@@ -23,7 +23,8 @@ async def setup(bot):
             color=0x00ff00
         )
 
-        embed.add_field(name=f"⭕ PREFIJO: {constantes.BOT_PREFIX}", inline=False)
+        embed.title = f"Comandos de {constantes.BOT_NAME}"
+        embed.description = f"Hola, soy {constantes.BOT_NAME}, mi prefijo es {constantes.BOT_PREFIX}. Aquí tienes una lista de mis comandos disponibles:"
         embed.add_field(name=f"🔹comandos", value="Muestra este mensaje", inline=False)
         embed.add_field(name=f"🔹ping", value="Responde con 'Pong!'", inline=False)
         embed.add_field(name=f"🔹play [canción o url]", value="Reproduce una canción.", inline=False)
@@ -32,7 +33,7 @@ async def setup(bot):
         embed.add_field(name=f"🔹stop", value="Desconecta al bot", inline=False)
         embed.add_field(name=f"🔹clear", value="Limpia la cola en caso de que hayan problemas", inline=False)
         embed.add_field(name=f"🔹queue", value="Muestra la lista de canciones en la cola", inline=False)
-        embed.add_field(name=f"🔹np", value="Desconecta al bot", inline=False)
+        embed.add_field(name=f"🔹[WIP] np", value="Muestra la cancion en reproduccion", inline=False)
 
 
         embed.set_footer(text=f"Usa el prefijo {constantes.BOT_PREFIX} para los comandos de texto.")
@@ -206,3 +207,25 @@ async def setup(bot):
         queue = queues[guild_id]
         queue.clear_queue()
         await ctx.send("Cola de canciones limpiada.")
+
+    @bot.command(name="np", aliases=["nowplaying", "reproduciendo"])
+    async def now_playing(ctx):
+        guild_id = ctx.guild.id
+        if guild_id not in queues:
+            await ctx.send("No hay canciones en la cola.")
+            return
+        queue = queues[guild_id]
+        if queue.now_playing is None:
+            await ctx.send("No hay canciones reproduciéndose.")
+            return
+        cancion = queue.now_playing
+        embed = discord.Embed(
+            title="Ahora Reproduciendo",
+            description=f"**{cancion.nombrecancion}**\n"
+                        f"**Artista:** {cancion.uploadercancion}\n"
+                        f"**Duración:** {utils.format_duration(cancion.duration)}\n"
+                        f"**Solicitado por:** {cancion.requester}",
+            color=0x00ff00
+        )
+        embed.set_thumbnail(url=cancion.thumbnail)
+        await ctx.send(embed=embed)

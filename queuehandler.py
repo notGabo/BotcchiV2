@@ -98,3 +98,9 @@ class QueueHandler:
         self.current_song = None
         self.now_playing = None
         self.is_playing = False
+
+    # async def now_playing_info(self):
+    #     if self.current_song:
+    #         await self.ctx.send(f"Reproduciendo: {self.current_song}")
+    #     else:
+    #         await self.ctx.send("No hay canciones en la cola.")
