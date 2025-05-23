@@ -3,8 +3,8 @@ from os import execl
 from sys import executable, argv
 from discord.ext import commands
 from discord import app_commands
-import comandos
-import constantes
+import src.comandos as comandos
+import src.constantes as constantes
 
 intents = discord.Intents.default()
 intents.message_content = True

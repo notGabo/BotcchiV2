@@ -1,15 +1,15 @@
 from discord.ext import commands
 from discord import embeds
-import urlhandlers.spotifyurlhandler as spotifyurlhandler
-import urlhandlers.yturlhandler as yturlhandler
-import queuehandler
+import src.urlhandlers.spotifyurlhandler as spotifyurlhandler
+import src.urlhandlers.yturlhandler as yturlhandler
+import src.queuehandler as queuehandler
+import src.constantes as constantes
+import src.yt_handler as yt_handler
 import discord
-import yt_handler
-import constantes
 import regex
 import json
-import utils
 import asyncio
+import utils
 
 
 queues = {}
@@ -36,7 +36,6 @@ async def setup(bot):
         embed.add_field(name=f"🔹clear", value="Limpia la cola en caso de que hayan problemas", inline=False)
         embed.add_field(name=f"🔹queue", value="Muestra la lista de canciones en la cola", inline=False)
         embed.add_field(name=f"🔹[WIP] np", value="Muestra la cancion en reproduccion", inline=False)
-
 
         embed.set_footer(text=f"Usa el prefijo {constantes.BOT_PREFIX} para los comandos de texto.")
 
@@ -219,12 +218,14 @@ async def setup(bot):
         if queue.now_playing is None:
             await ctx.send("No hay canciones reproduciéndose.")
             return
-        cancion = queue.now_playing
+            
+        cancion = queue.now_playing  # Use now_playing directly
+        print(f"Now playing: {cancion.__dict__}")
         embed = discord.Embed(
             title="Ahora Reproduciendo",
             description=f"**{cancion.nombrecancion}**\n"
                         f"**Artista:** {cancion.uploadercancion}\n"
-                        f"**Duración:** {utils.format_duration(cancion.duration)}\n"
+                        f"**Duración:** {cancion.duration // 60}:{cancion.duration % 60:02d}\n"
                         f"**Solicitado por:** {cancion.requester}",
             color=0x00ff00
         )

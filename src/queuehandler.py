@@ -62,10 +62,15 @@ class QueueHandler:
 
         fuente = discord.FFmpegPCMAudio(cancion.urlffmpeg, **ffmpeg_opts)
         voice_client = self.ctx.voice_client or await self.voice_channel.connect()
+        
+        # Set now_playing to the current song BEFORE playing it
+        self.now_playing = cancion
+        
         def after_playing(error):
             if error:
                 print(f"Error al reproducir: {error}")
             asyncio.run_coroutine_threadsafe(self.play_next(), self.ctx.bot.loop)
+        
         voice_client.play(fuente, after=after_playing)
 
         await self.ctx.message.add_reaction("✅")
@@ -75,7 +80,6 @@ class QueueHandler:
         print("play_next called")
         if self.queue:
             self.is_playing = True
-            self.now_playing = self.current_song
             self.current_song = self.queue.pop(0)
             print(f"Next song: {self.current_song}")
             await self.play_cancion(self.current_song)
@@ -83,7 +87,7 @@ class QueueHandler:
             print("Queue is empty, stopping playback")
             self.is_playing = False
             self.current_song = None
-            self.now_playing = None
+            self.now_playing = None  # Clear now_playing when queue is empty
 
     def add_cancion(self, cancion: Cancion):
         self.queue.append(cancion)
@@ -109,8 +113,8 @@ class QueueHandler:
         self.now_playing = None
         self.is_playing = False
 
-    # async def now_playing_info(self):
-    #     if self.current_song:
-    #         await self.ctx.send(f"Reproduciendo: {self.current_song}")
-    #     else:
-    #         await self.ctx.send("No hay canciones en la cola.")
+    async def now_playing_info(self):
+        if self.current_song:
+            await self.ctx.send(f"Reproduciendo: {self.current_song}")
+        else:
+            await self.ctx.send("No hay canciones en la cola.")
