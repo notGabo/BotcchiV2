@@ -62,18 +62,15 @@ class QueueHandler:
 
         fuente = discord.FFmpegPCMAudio(cancion.urlffmpeg, **ffmpeg_opts)
         voice_client = self.ctx.voice_client or await self.voice_channel.connect()
-        
-        # Set now_playing to the current song BEFORE playing it
+
         self.now_playing = cancion
-        
+
         def after_playing(error):
             if error:
                 print(f"Error al reproducir: {error}")
             asyncio.run_coroutine_threadsafe(self.play_next(), self.ctx.bot.loop)
-        
-        voice_client.play(fuente, after=after_playing)
 
-        await self.ctx.message.add_reaction("✅")
+        voice_client.play(fuente, after=after_playing)
         await self.ctx.send(f"Reproduciendo: {cancion}")
 
     async def play_next(self):
@@ -87,7 +84,10 @@ class QueueHandler:
             print("Queue is empty, stopping playback")
             self.is_playing = False
             self.current_song = None
-            self.now_playing = None  # Clear now_playing when queue is empty
+            self.now_playing = None
+            if self.ctx.voice_client and self.ctx.voice_client.is_connected():
+                await self.ctx.voice_client.disconnect()
+                print("Bot desconectado del canal de voz")
 
     def add_cancion(self, cancion: Cancion):
         self.queue.append(cancion)

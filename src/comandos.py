@@ -218,8 +218,8 @@ async def setup(bot):
         if queue.now_playing is None:
             await ctx.send("No hay canciones reproduciéndose.")
             return
-            
-        cancion = queue.now_playing  # Use now_playing directly
+
+        cancion = queue.now_playing
         print(f"Now playing: {cancion.__dict__}")
         embed = discord.Embed(
             title="Ahora Reproduciendo",

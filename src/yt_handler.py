@@ -1,10 +1,17 @@
 import yt_dlp
 import asyncio
+import os
 from os import getenv
 from dotenv import load_dotenv
 load_dotenv()
 
 COOKIES_FILE = getenv("COOKIES_FILE")
+
+# Verificar si el archivo de cookies existe
+if COOKIES_FILE and os.path.isfile(COOKIES_FILE):
+    print(f"Usando archivo de cookies: {COOKIES_FILE}")
+else:
+    print(f"Advertencia: El archivo de cookies no existe o no está especificado: {COOKIES_FILE}")
 
 async def buscador_ytdlp_async(query,ydl_opts):
     loop = asyncio.get_event_loop()
@@ -20,10 +27,14 @@ def _extract(query, ydl_opts):
             return None
 
 def ytdlp_opts(playlist: bool | None):
-    return {
+    opts = {
         "format": "bestaudio/best",
         "noplaylist": playlist,
         "youtube_include_dash_manifest": False,
         "youtubeinclude_hls_manifest": False,
-        "cookiefile": COOKIES_FILE,
     }
+
+    if COOKIES_FILE and os.path.isfile(COOKIES_FILE):
+        opts["cookiefile"] = COOKIES_FILE
+
+    return opts
