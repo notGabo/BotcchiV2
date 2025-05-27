@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 COOKIES_FILE = getenv("COOKIES_FILE")
+COOKIE_BROWSER = getenv("COOKIE_BROWSER")
 
 # Verificar si el archivo de cookies existe
 if COOKIES_FILE and os.path.isfile(COOKIES_FILE):
@@ -36,5 +37,6 @@ def ytdlp_opts(playlist: bool | None):
 
     if COOKIES_FILE and os.path.isfile(COOKIES_FILE):
         opts["cookiefile"] = COOKIES_FILE
+        opts["cookiesfrombrowser"] = COOKIE_BROWSER
 
     return opts
