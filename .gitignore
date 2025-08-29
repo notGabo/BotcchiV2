@@ -5,3 +5,5 @@ __pycache__/
 .env
 pyvenv.cfg
 cookies.txt
+./cancion.json
+cancion.json
