@@ -35,7 +35,8 @@ async def setup(bot):
         embed.add_field(name=f"🔹stop", value="Desconecta al bot", inline=False)
         embed.add_field(name=f"🔹clear", value="Limpia la cola en caso de que hayan problemas", inline=False)
         embed.add_field(name=f"🔹queue", value="Muestra la lista de canciones en la cola", inline=False)
-        embed.add_field(name=f"🔹[WIP] np", value="Muestra la cancion en reproduccion", inline=False)
+        embed.add_field(name=f"🔹np", value="Muestra la cancion en reproduccion", inline=False)
+        embed.add_field(name=f"🔹[WIP] lyrics", value=f"Despliega la letra de la canción en reproducción", inline=False)
 
         embed.set_footer(text=f"Usa el prefijo {constantes.BOT_PREFIX} para los comandos de texto.")
 
@@ -194,9 +195,18 @@ async def setup(bot):
         if len(queue.queue) == 0:
             await ctx.send("No hay canciones en la cola.")
             return
-        queue_list = "\n".join([str(cancion) for cancion in queue.queue])
-        await ctx.send(f"Lista de canciones en la cola:\n{queue_list}")
         await ctx.message.add_reaction("✅")
+        embed = discord.Embed(
+            title="Lista de canciones en la cola",
+            description=f""f"Reproduciendo ahora: {queue.now_playing}\n\n",
+            color=0x00ff00,
+        )
+        for i in queue.queue:
+            embed.add_field(name=i.nombrecancion, value=f"Artista: {i.uploadercancion} | Duración: {i.duration // 60}:{i.duration % 60:02d} | Solicitado por: {i.requester}", inline=False)
+            if len(queue.queue) > 10:
+                embed.add_field(name="...", value=f"y {len(queue.queue) - 10} más.", inline=False)
+                break
+        await ctx.send(embed=embed)
 
     @bot.command(name="clear", aliases=["limpiar"])
     async def clear_queue(ctx):

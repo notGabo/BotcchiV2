@@ -52,14 +52,5 @@ Conectado a {len(bot.guilds)} {'servidor' if len(bot.guilds) == 1  else 'servido
 Canales de voz conectados: {len(bot.voice_clients)}
 """)
 
-@bot.tree.command(name='restartbot', description='Reinicia el bot en caso de que haya un error')
-@app_commands.describe()
-async def restartbot(interaction: discord.Interaction):
-    print('Reiniciando bot...')
-    await interaction.response.send_message(f'Bot reiniciado. Reiniciando...')
-    await bot.close()
-    # Aparentemente esto no es seguro. Cambiar a un proceso externo mas adelante al momento de deployear en un servidor linux
-    execl(executable, executable, *argv)
-
 
 bot.run(constantes.BOT_TOKEN)
