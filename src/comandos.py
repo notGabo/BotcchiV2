@@ -174,13 +174,13 @@ async def setup(bot):
     @bot.command(name="skip", aliases=["saltar"])
     async def skip_music(ctx):
         guild_id = ctx.guild.id
+        print("canciones en la cola antes de skip:", queues[guild_id].queue if guild_id in queues else "No hay cola")
         if guild_id not in queues:
             await ctx.send("No hay canciones en la cola.")
             return
         queue = queues[guild_id]
         if queue.is_playing:
             queue.voice_client.stop()
-            await queue.play_next()
             await ctx.message.add_reaction("✅")
         else:
             await ctx.send("No hay canciones en la cola.")
@@ -233,11 +233,11 @@ async def setup(bot):
         print(f"Now playing: {cancion.__dict__}")
         embed = discord.Embed(
             title="Ahora Reproduciendo",
-            description=f"**{cancion.nombrecancion}**\n"
-                        f"**Artista:** {cancion.uploadercancion}\n"
-                        f"**Duración:** {cancion.duration // 60}:{cancion.duration % 60:02d}\n"
-                        f"**Solicitado por:** {cancion.requester}",
+            description=f"[{cancion.nombrecancion}]({cancion.urlcancion})",
             color=0x00ff00
         )
         embed.set_thumbnail(url=cancion.thumbnail)
+        embed.add_field(name="Duración", value=f"{cancion.duration // 60}:{cancion.duration % 60:02d}", inline=True)
+        embed.add_field(name="Subido por", value=cancion.uploadercancion, inline=True)
+        embed.add_field(name="Pedido por", value=cancion.requester, inline=True)
         await ctx.send(embed=embed)

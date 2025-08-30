@@ -50,7 +50,8 @@ class QueueHandler:
     async def play_cancion(self, cancion: Cancion):
         ffmpeg_opts = {
             "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
-            "options": "-vn",
+            #"options": "-vn"
+            'options': '-vn -b:a 256k -bufsize 3072k -ar 48000 -af silenceremove=1:0:-50dB'
         }
         if self.voice_channel is None:
             await self.ctx.message.add_reaction("❌")
@@ -60,7 +61,11 @@ class QueueHandler:
         if self.ctx.voice_client is None:
             await self.voice_channel.connect()
 
+        if self.ctx.voice_client.is_playing():
+            self.ctx.voice_client.stop()
+
         fuente = discord.FFmpegPCMAudio(cancion.urlffmpeg, **ffmpeg_opts)
+        fuente_volume = discord.PCMVolumeTransformer(fuente, volume=self.volume if hasattr(self, 'volume') else 0.5)
         voice_client = self.ctx.voice_client or await self.voice_channel.connect()
 
         self.now_playing = cancion
@@ -70,8 +75,15 @@ class QueueHandler:
                 print(f"Error al reproducir: {error}")
             asyncio.run_coroutine_threadsafe(self.play_next(), self.ctx.bot.loop)
 
-        voice_client.play(fuente, after=after_playing)
-        await self.ctx.send(f"Reproduciendo: {cancion}")
+        voice_client.play(fuente_volume, after=after_playing)
+        # voice_client.play(fuente_volume, after=lambda e: self.song_finiched(e, after_playing))
+        embed = discord.Embed(title="Reproduciendo", description=f"[{cancion.nombrecancion}]({cancion.urlcancion})", color=0x00ff00)
+        embed.set_thumbnail(url=cancion.thumbnail)
+        embed.add_field(name="Duración", value=f"{cancion.duration // 60}:{cancion.duration % 60:02d}", inline=True)
+        embed.add_field(name="Subido por", value=cancion.uploadercancion
+, inline=True)
+        embed.add_field(name="Pedido por", value=cancion.requester, inline=True)
+        await self.ctx.send(embed=embed)
 
     async def play_next(self):
         print("play_next called")
@@ -95,6 +107,7 @@ class QueueHandler:
             print(f"Cola: {i.nombrecancion} - {i.uploadercancion} ({i.duration // 60}:{i.duration % 60:02d})")
         if not self.is_playing:
             asyncio.create_task(self.play_next())
+
     async def skip_cancion(self):
         await self.play_next()
 

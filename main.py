@@ -22,6 +22,12 @@ bot = commands.Bot(
 async def setup_hook():
     await comandos.setup(bot) # Logica del bot aqui
 
+@bot.command()
+async def sync(ctx: commands.Context):
+    totalcomandos = await bot.tree.sync()
+    await ctx.send(f'Sincronizados {len(totalcomandos)} comandos de barra')
+
+
 @bot.event
 async def on_ready():
     print(f'{constantes.BOT_NAME} conectado como {bot.user.name}')
