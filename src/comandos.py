@@ -2,6 +2,7 @@ from discord.ext import commands
 from discord import embeds
 import src.urlhandlers.spotifyurlhandler as spotifyurlhandler
 import src.urlhandlers.yturlhandler as yturlhandler
+import src.urlhandlers.lyricshandler as lyricshandler
 import src.queuehandler as queuehandler
 import src.constantes as constantes
 import src.yt_handler as yt_handler
@@ -174,7 +175,6 @@ async def setup(bot):
     @bot.command(name="skip", aliases=["saltar"])
     async def skip_music(ctx):
         guild_id = ctx.guild.id
-        print("canciones en la cola antes de skip:", queues[guild_id].queue if guild_id in queues else "No hay cola")
         if guild_id not in queues:
             await ctx.send("No hay canciones en la cola.")
             return
@@ -230,7 +230,6 @@ async def setup(bot):
             return
 
         cancion = queue.now_playing
-        print(f"Now playing: {cancion.__dict__}")
         embed = discord.Embed(
             title="Ahora Reproduciendo",
             description=f"[{cancion.nombrecancion}]({cancion.urlcancion})",
@@ -241,3 +240,78 @@ async def setup(bot):
         embed.add_field(name="Subido por", value=cancion.uploadercancion, inline=True)
         embed.add_field(name="Pedido por", value=cancion.requester, inline=True)
         await ctx.send(embed=embed)
+
+    @bot.command(name="lyrics", aliases=["letra"])
+    async def lyrics(ctx, arg1=None, arg2=None):
+        # Manejar argumentos
+        if arg1 and arg2:
+            artista, cancion = arg1, arg2
+
+        elif arg1 == "np" and arg2 is None:
+            guild_id = ctx.guild.id
+            if guild_id not in queues:
+                await ctx.send("No hay canciones en la cola.")
+                return
+            queue = queues[guild_id]
+            if queue.now_playing is None:
+                await ctx.send("No hay canciones reproduciéndose.")
+                return
+            cancion_obj = queue.now_playing
+            artista,cancion = lyricshandler.limpieza_string(cancion_obj.uploadercancion, cancion_obj.nombrecancion)
+        elif arg1 == "search" and arg2 is None:
+            await ctx.send("El comando 'lyrics search' aún no está implementado.")
+            return
+
+        else:
+            embed = discord.Embed(
+                title="Error",
+                description="Uso incorrecto del comando lyrics",
+                color=0xff0000
+            )
+            embed.add_field(
+                name="Uso específico:", 
+                value=f"{constantes.BOT_PREFIX}lyrics [artista] [canción]",
+                inline=False
+            )
+            embed.add_field(
+                name="Canción en reproducción:",
+                value=f"{constantes.BOT_PREFIX}lyrics np (No funciona siempre)",
+                inline=False
+            )
+            return await ctx.send(embed=embed)
+
+        # Obtener letra de la canción
+        await ctx.send(f"Buscando letra para: {cancion} de {artista}")
+        objetocancion = lyricshandler.GenerarObjetoCancion(artista, cancion)
+        if objetocancion is None:
+            await ctx.send(f"No se encontró la letra para: {cancion} de {artista}")
+            return
+
+        linkcancion = lyricshandler.GenerarLinkCancion(objetocancion)
+        if linkcancion is None:
+            await ctx.send(f"No se encontró la letra para: {cancion} de {artista}")
+            return
+
+        letra = lyricshandler.GenerarLetraCancion(linkcancion)
+        if letra is None:
+            await ctx.send(f"No se encontró la letra para: {cancion} de {artista}")
+            return
+
+        # Manejar envio de letra de cancion
+        if len(letra) > 2000:
+            partes = utils.split_message(letra, 2000)
+            await ctx.send(f"Letras de {cancion} de {artista}:")
+            for parte in partes:
+                await ctx.send(parte)
+                await asyncio.sleep(1)
+            ctx.send(f"Letras de {cancion} de {artista}:")
+            await ctx.send(letra)
+            return
+        else:
+            embed = discord.Embed(
+                title=f"Letras de {cancion} de {artista}",
+                description=letra,
+                color=0x00ff00
+            )
+            await ctx.send(embed=embed)
+            return

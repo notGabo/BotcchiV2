@@ -86,20 +86,16 @@ class QueueHandler:
         await self.ctx.send(embed=embed)
 
     async def play_next(self):
-        print("play_next called")
         if self.queue:
             self.is_playing = True
             self.current_song = self.queue.pop(0)
-            print(f"Next song: {self.current_song}")
             await self.play_cancion(self.current_song)
         else:
-            print("Queue is empty, stopping playback")
             self.is_playing = False
             self.current_song = None
             self.now_playing = None
             if self.ctx.voice_client and self.ctx.voice_client.is_connected():
                 await self.ctx.voice_client.disconnect()
-                print("Bot desconectado del canal de voz")
 
     def add_cancion(self, cancion: Cancion):
         self.queue.append(cancion)
