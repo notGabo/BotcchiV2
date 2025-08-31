@@ -242,12 +242,17 @@ async def setup(bot):
         await ctx.send(embed=embed)
 
     @bot.command(name="lyrics", aliases=["letra"])
-    async def lyrics(ctx, arg1=None, arg2=None):
+    async def lyrics(ctx, arg1=None, arg2=None, arg3=None):
+        # Preparar embed de error
+        embedError = discord.Embed(title="Error",description="Uso incorrecto del comando lyrics",color=0xff0000)
+        embedError.add_field(name="Uso específico:", value=f"{constantes.BOT_PREFIX}lyrics search [artista] [canción]",inline=False)
+        embedError.add_field(name="Canción en reproducción:", value=f"{constantes.BOT_PREFIX}lyrics np (No funciona siempre)", inline=False)
+
         # Manejar argumentos
-        if arg1 and arg2:
+        if arg1 and arg2 and (arg1 != "search" and arg1 != "np"):
             artista, cancion = arg1, arg2
 
-        elif arg1 == "np" and arg2 is None:
+        elif arg1 == "np" and arg2 is None and arg3 is None:
             guild_id = ctx.guild.id
             if guild_id not in queues:
                 await ctx.send("No hay canciones en la cola.")
@@ -258,27 +263,78 @@ async def setup(bot):
                 return
             cancion_obj = queue.now_playing
             artista,cancion = lyricshandler.limpieza_string(cancion_obj.uploadercancion, cancion_obj.nombrecancion)
-        elif arg1 == "search" and arg2 is None:
-            await ctx.send("El comando 'lyrics search' aún no está implementado.")
-            return
 
+        elif arg1 == "search" and arg2 is not None and arg3 is not None:
+            if arg2 and arg3:
+                artista, cancion = arg2, arg3
+                busqueda = lyricshandler.BuscarObjetoCancion(artista, cancion)
+
+                embedBusqueda = discord.Embed(
+                    title=f"Resultados de búsqueda para: {cancion} de {artista}",
+                    description="Reacciona con el número para ver la letra de la canción:",
+                    color=0x00ff00
+                )
+
+                resultados_limitados = busqueda[:10] if len(busqueda) > 10 else busqueda
+                for i, item in enumerate(resultados_limitados, 1):
+                    embedBusqueda.add_field(
+                        name=f"{i}. {item.get('txt','N/A')}",
+                        value=f"Artista: {item.get('art','N/A')}",
+                        inline=False
+                    )
+                mensaje = await ctx.send(embed=embedBusqueda)
+
+                emojis_numeros = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
+                for i in range(len(resultados_limitados)):
+                    await mensaje.add_reaction(emojis_numeros[i])
+
+                def check(reaction, user):
+                    return user == ctx.author and str(reaction.emoji) in emojis_numeros[:len(resultados_limitados)]
+                try:
+                    reaction, user = await bot.wait_for('reaction_add', timeout=60.0, check=check)
+                    indice = emojis_numeros.index(str(reaction.emoji))
+                    item = resultados_limitados[indice]
+                    artist = item.get('art', '').replace(' ', '-').lower().replace(':', '')
+                    url = item.get('url', '')
+                    img = item.get('img', '')
+                    song_title = item.get('txt', 'N/A')
+                    artist_display = item.get('art', 'N/A')
+
+                    link_cancion = f"https://www.letras.com/{artist}/{url}/"
+                    letra = lyricshandler.GenerarLetraCancion(link_cancion)
+
+                    if letra is None:
+                        await ctx.send(f"No se pudo encontrar la letra para: {song_title} de {artist_display}")
+                        return
+
+                    if len(letra) > 2000:
+                        partes = utils.split_message(letra, 2000)
+                        await ctx.send(f"Letras de {song_title} de {artist_display}:")
+                        for i, parte in enumerate(partes):
+                            embed_letras = discord.Embed(
+                                title=f"Letras de {song_title} de {artist_display} (parte {i+1}/{len(partes)})",
+                                description=parte,
+                                color=0x00ff00
+                            )
+                            embed_letras.set_thumbnail(url=img)
+                            await ctx.send(embed=embed_letras)
+                            await asyncio.sleep(1)
+                    else:
+                        embed_letras = discord.Embed(
+                            title=f"Letras de {song_title} de {artist_display}",
+                            description=letra,
+                            color=0x00ff00
+                        )
+                        await ctx.send(embed=embed_letras)
+
+                except asyncio.TimeoutError:
+                    await ctx.send("Se agotó el tiempo de espera para seleccionar una canción.")
+
+                return
+            else:
+                return await ctx.send(embed=embedError)
         else:
-            embed = discord.Embed(
-                title="Error",
-                description="Uso incorrecto del comando lyrics",
-                color=0xff0000
-            )
-            embed.add_field(
-                name="Uso específico:", 
-                value=f"{constantes.BOT_PREFIX}lyrics [artista] [canción]",
-                inline=False
-            )
-            embed.add_field(
-                name="Canción en reproducción:",
-                value=f"{constantes.BOT_PREFIX}lyrics np (No funciona siempre)",
-                inline=False
-            )
-            return await ctx.send(embed=embed)
+            return await ctx.send(embed=embedError)
 
         # Obtener letra de la canción
         await ctx.send(f"Buscando letra para: {cancion} de {artista}")
@@ -302,16 +358,19 @@ async def setup(bot):
             partes = utils.split_message(letra, 2000)
             await ctx.send(f"Letras de {cancion} de {artista}:")
             for parte in partes:
-                await ctx.send(parte)
+                embedLetrasPartes = discord.Embed(
+                    title=f"Letras de {cancion} de {artista} (parte {partes.index(parte)+1}/{len(partes)})",
+                    description=parte,
+                    color=0x00ff00
+                )
+                await ctx.send(embed=embedLetrasPartes)
                 await asyncio.sleep(1)
-            ctx.send(f"Letras de {cancion} de {artista}:")
-            await ctx.send(letra)
             return
         else:
-            embed = discord.Embed(
+            embedLetras = discord.Embed(
                 title=f"Letras de {cancion} de {artista}",
                 description=letra,
                 color=0x00ff00
             )
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embedLetras)
             return
