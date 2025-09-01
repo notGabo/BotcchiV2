@@ -5,7 +5,7 @@ import re
 endpointBusqueda = "https://solr.sscdn.co/letras/m1/?q={}&wt=json&rows=10"
 
 def limpieza_string(artista, cancion):
-    palabras_excluir = ["topic","official", "video", "audio","official video","official audio","official music", "(official music video)","(official audio)","(official music)", "(official music video)" "lyric","music" ,"lyrics", "feat.", "ft.", "ft", "feat", "remix", "version", "live", "hd", "4k","(lyrics)","(lyric)","(official video)","(official audio)","(oficial video)","(official audio)","()","(",")","[]","[","]"]
+    palabras_excluir = ["upgrade","topic","official", "video", "audio","official video","official audio","official music", "(official music video)","(official audio)","(official music)", "(official music video)" "lyric","music" ,"lyrics", "feat.", "ft.", "ft", "feat", "remix", "version", "live", "hd", "4k","(lyrics)","(lyric)","(official video)","(official audio)","(oficial video)","(official audio)","()","(",")","[]","[","]"]
 
     cancion = cancion.lower()
     artista = artista.lower()
@@ -14,9 +14,11 @@ def limpieza_string(artista, cancion):
         cancion = cancion.replace(artista, "").strip()
 
     cancion = cancion.replace("-", "").strip()
+    artista = artista.replace("-", "").strip()
 
     for palabra in palabras_excluir:
         cancion = cancion.replace(palabra.lower(), "").strip()
+        artista = artista.replace(palabra.lower(), "").strip()
 
     cancion = re.sub(r'\(.*?\)', '', cancion).strip()
 
