@@ -1,11 +1,24 @@
-FROM python:3.13.3
+# syntax=docker/dockerfile:1.7
+FROM python:3.12-slim AS runtime
 
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y ffmpeg ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --uid 10001 botcchi
 
 WORKDIR /app
-RUN git clone https://github.com/notGabo/BotcchiV2.git /app 
-RUN pip install -r requeriments.txt
-RUN apt-get update && apt-get install -y software-properties-common && apt-get install -y ffmpeg
-RUN adduser -u 5678 --disabled-password --gecos "" appuser && chown -R appuser /app
-USER appuser
+
+COPY requirements.txt ./
+RUN python -m pip install --upgrade pip \
+    && python -m pip install -r requirements.txt
+
+COPY --chown=botcchi:botcchi main.py ./
+COPY --chown=botcchi:botcchi botcchi ./botcchi
+
+USER botcchi
+
 CMD ["python", "main.py"]

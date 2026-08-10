@@ -1,0 +1,11 @@
+services:
+  botcchi:
+    build:
+      context: .
+    image: botcchi:local
+    restart: unless-stopped
+    env_file:
+      - .env
+    # To use COOKIES_FILE=/app/cookies.txt, mount it here:
+    # volumes:
+    #   - ./cookies.txt:/app/cookies.txt:ro

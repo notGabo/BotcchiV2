@@ -1,54 +1,93 @@
 # BotcchiV2
 
-Repositorio re escritura de codigo para el bot Botcchi escrito en python. Sin depender del proyecto Vulkan.
+Bot de musica para Discord escrito en Python. Usa `discord.py` para comandos y voz,
+`yt-dlp` como implementacion mantenida de youtube-dl, FFmpeg para transmitir audio y
+Spotify Web API para convertir canciones o playlists de Spotify en busquedas de YouTube.
 
-## Requisitos
+## Arquitectura
 
-* Python 3.13.3 (No se ha probado en otras versiones)
-* ffmpeg - setear su binario para ejecución de ambiente
-* git
+```text
+.
+|-- main.py                    # Unico punto de entrada y carga del bot
+|-- botcchi/
+|   |-- bot.py                 # Cliente Discord, intents y errores globales
+|   |-- config.py              # Variables de entorno tipadas
+|   |-- cogs/                  # Controladores de comandos
+|   |-- models/                # Modelos inmutables de pistas y usuarios
+|   |-- services/              # YouTube, Spotify, resolucion, colas y FFmpeg
+|   |-- ui/                    # Fabrica central de embeds
+|   `-- utils/                 # Formato de duraciones y textos
+|-- tests/
+|-- run.sh / run.bat
+|-- Dockerfile
+`-- .github/workflows/ci.yml
+```
 
-## Instalación
+Cada servidor tiene su propia cola y reproductor. Las operaciones bloqueantes de yt-dlp y
+Spotipy se ejecutan fuera del event loop. La URL de audio se obtiene cuando la pista va a
+comenzar, para que no expire mientras espera en la cola.
 
-1. Clona el repostorio
+## Configuracion de Discord
 
-   ```ps1
-   git clone https://github.com/notGabo/BotcchiV2.git
-   ```
-2. Entra al working directory
+1. Crea una aplicacion y un bot en el [Developer Portal](https://discord.com/developers/applications).
+2. En **Bot > Privileged Gateway Intents**, activa **Message Content Intent**.
+3. Invita el bot con los permisos `View Channels`, `Send Messages`, `Embed Links`,
+   `Connect` y `Speak`.
+4. Copia `.env.example` como `.env` y completa al menos `BOT_TOKEN` y `BOT_PREFIX`.
 
-   ```ps1
-   cd ./BotcchiV2
-   ```
-3. Genera un ambiente virtual con python
+```dotenv
+BOT_TOKEN=
+BOT_PREFIX=--
+APP_ID=
+PUBLIC_KEY=
+BOT_URL_INVITACION=
+BOT_SERVIDORES_PERMITIDOS=
+SPOTIFY_CLIENT_ID=
+SPOTIFY_CLIENT_SECRET=
+COOKIES_BROWSER=
+COOKIES_FILE=
+```
 
-   Windows:
+`BOT_SERVIDORES_PERMITIDOS` acepta IDs separados por comas o punto y coma. Si queda vacio,
+el bot responde en todos los servidores donde este instalado. Las credenciales de Spotify
+son opcionales, pero ambas son necesarias para aceptar URLs de Spotify.
 
-   ```ps1
-    python -m venv {nombre de tu venv} && ./{nombre de tu venv}/Scripts/activate.ps1 
-   ```
-   ó
+Para videos que exijan sesion, usa `COOKIES_FILE=./cookies.txt` o un navegador local como
+`COOKIES_BROWSER=firefox`. En Docker se recomienda exclusivamente un archivo de cookies y
+el volumen definido en `docker-compose.yml`.
 
-   ```
-    python -m venv {nombre de tu venv} && ./{nombre de tu venv}/Scripts/activate.bat 
-   ```
-   Linux
+## Ejecucion
 
-   ```bash
-   python3 -m venv {nombre de tu venv} && source {nombre de tu venv}/Scripts/bin/activate
-   ```
-4. Instalar modulos
+Requisitos locales: Python 3.10 o superior y FFmpeg disponible en `PATH`.
 
-   ```
-   pip3 install -r requeriments.txt
-   ```
-5. Genera tu .env en base a la plantilla existente
+Linux/macOS:
 
-   ![1747776234491](image/README/1747776234491.png)
+```bash
+chmod +x run.sh
+./run.sh
+```
 
-   *nota: BOT_SERVIDORES_PERMITIDOS es un array de las guild ID de cada server separado por coma. Ej: BOT_SERVIDORES_PERMITIDOS=11111,22222,3333,4444
-6. Levanta el bot
+Windows:
 
-   ```
-   python3 main.py
-   ```
+```bat
+run.bat
+```
+
+Docker:
+
+```bash
+docker compose up --build -d
+docker compose logs -f botcchi
+```
+
+## Comandos
+
+Con un prefijo `--`: `--comandos`, `--ping`, `--play <busqueda o URL>`,
+`--playlist <URL>`, `--skip`, `--stop`, `--clear`, `--queue`, `--np` y
+`--lyrics` (WIP). Todas las respuestas visibles se envian como embeds.
+
+## CI/CD
+
+El workflow de GitHub Actions ejecuta Ruff, pytest y compilacion de bytecode en cada pull
+request y push a `main`. Tras pasar las pruebas, construye Docker; los pushes a `main`
+publican `latest` y una etiqueta por SHA en GitHub Container Registry (`ghcr.io`).
