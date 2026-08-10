@@ -25,7 +25,8 @@ Spotify Web API para convertir canciones o playlists de Spotify en busquedas de 
 
 Cada servidor tiene su propia cola y reproductor. Las operaciones bloqueantes de yt-dlp y
 Spotipy se ejecutan fuera del event loop. La URL de audio se obtiene cuando la pista va a
-comenzar, para que no expire mientras espera en la cola.
+comenzar, para que no expire mientras espera en la cola. Cuando la cola termina, el bot se
+desconecta automáticamente del canal de voz después de un minuto de inactividad.
 
 ## Configuracion de Discord
 

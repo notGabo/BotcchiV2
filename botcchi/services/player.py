@@ -11,12 +11,13 @@ from discord.ext import commands
 from botcchi.models import Track
 from botcchi.services.errors import MediaExtractionError
 from botcchi.services.youtube import YouTubeService
-from botcchi.ui.embeds import error_embed, now_playing_embed
+from botcchi.ui.embeds import error_embed, info_embed, now_playing_embed
 
 logger = logging.getLogger(__name__)
 
 FFMPEG_BEFORE_OPTIONS = "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5"
 FFMPEG_OPTIONS = "-vn -loglevel warning"
+IDLE_DISCONNECT_SECONDS = 60.0
 
 
 class GuildPlayer:
@@ -25,6 +26,7 @@ class GuildPlayer:
         bot: commands.Bot,
         guild_id: int,
         youtube: YouTubeService,
+        idle_timeout: float = IDLE_DISCONNECT_SECONDS,
     ) -> None:
         self.bot = bot
         self.guild_id = guild_id
@@ -35,6 +37,8 @@ class GuildPlayer:
         self._transition_lock = asyncio.Lock()
         self._starting = False
         self._stopping = False
+        self._idle_timeout = idle_timeout
+        self._idle_disconnect_task: asyncio.Task[None] | None = None
 
     @property
     def voice_client(self) -> discord.VoiceClient | None:
@@ -49,6 +53,7 @@ class GuildPlayer:
     async def enqueue(
         self, track: Track, channel: discord.abc.Messageable
     ) -> tuple[bool, int]:
+        self._cancel_idle_disconnect()
         accepted_as_current = not self.is_active and not self.queue
         self.queue.append(track)
         self.text_channel = channel
@@ -59,6 +64,7 @@ class GuildPlayer:
     async def enqueue_many(
         self, tracks: Sequence[Track], channel: discord.abc.Messageable
     ) -> bool:
+        self._cancel_idle_disconnect()
         self.queue.extend(tracks)
         self.text_channel = channel
         return await self.start_if_idle()
@@ -77,6 +83,7 @@ class GuildPlayer:
                 or not self.queue
             ):
                 return False
+            self._cancel_idle_disconnect()
             self._starting = True
             track = self.queue.popleft()
             self.current = track
@@ -99,7 +106,9 @@ class GuildPlayer:
             await self._send(
                 error_embed("Error de reproduccion", str(exc))
             )
-            await self.start_if_idle()
+            started = await self.start_if_idle()
+            if not started:
+                self._schedule_idle_disconnect()
             return False
 
         loop = asyncio.get_running_loop()
@@ -129,7 +138,9 @@ class GuildPlayer:
 
         if playback_error:
             await self._send(error_embed("Error de reproduccion", str(playback_error)))
-            await self.start_if_idle()
+            started = await self.start_if_idle()
+            if not started:
+                self._schedule_idle_disconnect()
             return False
 
         await self._send(now_playing_embed(track))
@@ -149,7 +160,9 @@ class GuildPlayer:
             self.current = None
             if self._stopping:
                 return
-        await self.start_if_idle()
+        started = await self.start_if_idle()
+        if not started:
+            self._schedule_idle_disconnect()
 
     def skip(self) -> bool:
         voice = self.voice_client
@@ -161,9 +174,12 @@ class GuildPlayer:
     def clear(self) -> int:
         count = len(self.queue)
         self.queue.clear()
+        if not self.is_active:
+            self._schedule_idle_disconnect()
         return count
 
     async def stop_and_disconnect(self) -> None:
+        self._cancel_idle_disconnect()
         async with self._transition_lock:
             self._stopping = True
             self.queue.clear()
@@ -178,6 +194,79 @@ class GuildPlayer:
             self.current = None
             self._starting = False
             self._stopping = False
+
+    def _schedule_idle_disconnect(self) -> None:
+        voice = self.voice_client
+        if (
+            self._stopping
+            or self._starting
+            or self.current is not None
+            or self.queue
+            or voice is None
+            or not voice.is_connected()
+            or voice.is_playing()
+            or voice.is_paused()
+        ):
+            return
+        if self._idle_disconnect_task and not self._idle_disconnect_task.done():
+            return
+        self._idle_disconnect_task = asyncio.create_task(
+            self._disconnect_after_idle(),
+            name=f"botcchi-idle-disconnect-{self.guild_id}",
+        )
+
+    def _cancel_idle_disconnect(self) -> None:
+        task = self._idle_disconnect_task
+        self._idle_disconnect_task = None
+        if task and task is not asyncio.current_task() and not task.done():
+            task.cancel()
+
+    async def _disconnect_after_idle(self) -> None:
+        claimed_disconnect = False
+        disconnected = False
+        try:
+            await asyncio.sleep(self._idle_timeout)
+            async with self._transition_lock:
+                voice = self.voice_client
+                if (
+                    self._stopping
+                    or self._starting
+                    or self.current is not None
+                    or self.queue
+                    or voice is None
+                    or not voice.is_connected()
+                    or voice.is_playing()
+                    or voice.is_paused()
+                ):
+                    return
+                self._stopping = True
+                claimed_disconnect = True
+
+            await voice.disconnect(force=True)
+            disconnected = True
+        except asyncio.CancelledError:
+            return
+        except discord.DiscordException:
+            logger.exception(
+                "No se pudo desconectar por inactividad del servidor %s",
+                self.guild_id,
+            )
+        finally:
+            if claimed_disconnect:
+                async with self._transition_lock:
+                    self.current = None
+                    self._starting = False
+                    self._stopping = False
+            if self._idle_disconnect_task is asyncio.current_task():
+                self._idle_disconnect_task = None
+
+        if disconnected:
+            await self._send(
+                info_embed(
+                    "Desconectado por inactividad",
+                    "No hubo música en reproducción durante 1 minuto.",
+                )
+            )
 
     def snapshot(self) -> tuple[Track | None, list[Track]]:
         return self.current, list(self.queue)
