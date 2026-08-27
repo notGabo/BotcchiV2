@@ -28,3 +28,6 @@ data/*
 .idea/
 .vscode/
 *.swp
+
+src.md
+main.md

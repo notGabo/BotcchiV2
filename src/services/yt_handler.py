@@ -49,15 +49,22 @@ class YTDLSource:
         return any(pattern in message for pattern in cls.AGE_RESTRICTED_PATTERNS)
 
     @classmethod
-    async def extract_info(cls, query: str, download: bool = False):
+    async def extract_info(cls, query: str, download: bool = False, status_callback=None):
         attempts = [cls._build_search_query(query)]
         if not attempts[0].lower().endswith(' topic'):
             attempts.append(cls._build_search_query(query, add_topic=True))
 
+        total_attempts = len(attempts)
         last_error = None
 
-        for attempt in attempts:
+        for index, attempt in enumerate(attempts, start=1):
             try:
+                # Si es un reintento (ej. restricción de edad en el 1er intento), notificar a Discord
+                if status_callback and index > 1:
+                    await status_callback(
+                        f"⚠️ **Restricción de edad / error detectado.**\nReintentando ({index}/{total_attempts}) con búsqueda alternativa: `{attempt}`..."
+                    )
+
                 loop = asyncio.get_event_loop()
                 data = await loop.run_in_executor(
                     None, lambda current_query=attempt: cls.ytdl.extract_info(current_query, download=download)
@@ -90,6 +97,9 @@ class YTDLSource:
                 break
 
         if last_error is not None:
-            raise RuntimeError(f"No se pudo obtener la canción: {query}. Detalle: {last_error}") from last_error
+            raise RuntimeError(
+                f"No se pudo obtener la canción tras ({total_attempts}/{total_attempts}) intentos.\n"
+                f"**Detalle:** `{last_error}`"
+            ) from last_error
 
         raise RuntimeError(f"No se pudo obtener la canción: {query}.")

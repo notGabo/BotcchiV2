@@ -31,13 +31,30 @@ class Music(commands.Cog):
 
     async def play_next(self, ctx):
         state = self.get_state(ctx.guild.id)
+
+        # 1. Validar que el bot siga efectivamente conectado al canal de voz
+        if not ctx.voice_client or not ctx.voice_client.is_connected():
+            state.current = None
+            return
+
+        # 2. Evitar dobles reproducciones simultáneas por condiciones de carrera
+        if ctx.voice_client.is_playing():
+            return
+
         if state.queue:
             state.current = state.queue.pop(0)
             audio_source = discord.FFmpegPCMAudio(state.current['info']['url'], **FFMPEG_OPTIONS)
-            ctx.voice_client.play(audio_source, after=lambda e: self.bot.loop.create_task(self.play_next(ctx)))
+
+            def after_playing(error):
+                if error:
+                    print(f"[Music] Error en reproducción de FFmpeg: {error}")
+                # Invocar el siguiente tema de forma segura en el loop del bot
+                self.bot.loop.create_task(self.play_next(ctx))
+
+            ctx.voice_client.play(audio_source, after=after_playing)
 
             embed = EmbedBuilder.now_playing(state.current['info'], state.current['requester'])
-            content_text = (f"Se ha añadido la canción a la cola: {state.current['info']['title']} - "
+            content_text = (f"Se está reproduciendo: {state.current['info']['title']} - "
                             f"{state.current['info']['uploader']} ({state.current['info']['duration_str']})")
             await ctx.send(content=content_text, embed=embed)
         else:
@@ -48,6 +65,7 @@ class Music(commands.Cog):
         if not ctx.author.voice:
             return await ctx.send(embed=EmbedBuilder.error("Debes estar en un canal de voz."))
 
+        # Conectar al canal si no está conectado
         if not ctx.voice_client:
             await ctx.author.voice.channel.connect()
 
@@ -57,14 +75,15 @@ class Music(commands.Cog):
                 state = self.get_state(ctx.guild.id)
                 item = {'info': info, 'requester': ctx.author.name}
 
+                # Añadir siempre el item a la cola primero
+                state.queue.append(item)
+
                 if ctx.voice_client.is_playing() or state.current:
-                    state.queue.append(item)
                     content_text = (f"Se ha añadido la canción a la cola: {info['title']} - "
                                     f"{info['uploader']} ({info['duration_str']})")
                     embed = EmbedBuilder.now_playing(info, ctx.author.name)
                     await ctx.send(content=content_text, embed=embed)
                 else:
-                    state.queue.append(item)
                     await self.play_next(ctx)
         except RuntimeError as exc:
             await ctx.send(embed=EmbedBuilder.error(str(exc)))
@@ -143,13 +162,38 @@ class Music(commands.Cog):
             await ctx.send(embed=EmbedBuilder.error("No hay ninguna canción reproduciéndose."))
 
     @commands.command(name="lyrics")
-    async def lyrics(self, ctx):
+    async def lyrics(self, ctx, *, query: str = None):
         state = self.get_state(ctx.guild.id)
-        if not state.current:
-            return await ctx.send(embed=EmbedBuilder.error("No hay ninguna canción en reproducción."))
+        
+        # 1. Determinar el término de búsqueda
+        search_query = query
+        if not search_query:
+            if state.current and state.current.get('info'):
+                search_query = state.current['info']['title']
+            else:
+                return await ctx.send(
+                    embed=EmbedBuilder.error("No hay ninguna canción reproduciéndose ni especificaste una búsqueda.")
+                )
 
-        lyric_text = await LyricsHandler.get_lyrics(state.current['info']['title'])
-        await ctx.send(embed=EmbedBuilder.info("Letra [WIP]", lyric_text))
+        async with ctx.typing():
+            result = await LyricsHandler.get_lyrics(search_query)
+
+            if not result:
+                return await ctx.send(
+                    embed=EmbedBuilder.error(f"No se encontró la letra para **{search_query}**.")
+                )
+
+            lyrics_text = result['lyrics']
+            if len(lyrics_text) > 4000:
+                lyrics_text = lyrics_text[:3997] + "..."
+
+            embed = discord.Embed(
+                title=f"🎵 Letra: {result['artist']} - {result['title']}",
+                description=lyrics_text,
+                color=discord.Color.purple()
+            )
+            embed.set_footer(text=f"Fuente: {result['source']}")
+            await ctx.send(embed=embed)
 
 
 async def setup(bot):
