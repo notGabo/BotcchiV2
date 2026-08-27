@@ -1,11 +1,26 @@
-FROM python:3.13.3
+FROM python:3.11-slim
 
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    git \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -u 1000 botuser
 
 WORKDIR /app
-RUN git clone https://github.com/notGabo/BotcchiV2.git /app 
-RUN pip install -r requeriments.txt
-RUN apt-get update && apt-get install -y software-properties-common && apt-get install -y ffmpeg
-RUN adduser -u 5678 --disabled-password --gecos "" appuser && chown -R appuser /app
-USER appuser
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+COPY --chown=botuser:botuser . .
+
+RUN mkdir -p /app/data && chown -R botuser:botuser /app/data
+
+USER botuser
+
 CMD ["python", "main.py"]
