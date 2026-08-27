@@ -61,6 +61,34 @@ class Music(commands.Cog):
         else:
             state.current = None
 
+    @commands.command(name="play", aliases=["p"])
+    async def play(self, ctx, *, query: str):
+        if not ctx.author.voice:
+            return await ctx.send(embed=EmbedBuilder.error("Debes estar en un canal de voz."))
+
+        if not ctx.voice_client:
+            await ctx.author.voice.channel.connect()
+
+        try:
+            async with ctx.typing():
+                info = await YTDLSource.extract_info(query)
+                state = self.get_state(ctx.guild.id)
+                item = {'info': info, 'requester': ctx.author.name}
+                state.queue.append(item)
+
+                if not ctx.voice_client.is_playing() and not state.current:
+                    await self.play_next(ctx)
+                else:
+                    embed = EmbedBuilder.info(
+                        "Añadido a la cola",
+                        f"**{info['title']}** ({info['duration_str']})"
+                    )
+                    await ctx.send(embed=embed)
+
+        except Exception as exc:
+            await ctx.send(embed=EmbedBuilder.error(f"Error al reproducir la canción: {exc}"))
+
+
     @commands.command(name="playlist")
     async def playlist(self, ctx, url: str):
         if not ctx.author.voice:
