@@ -1,9 +1,33 @@
-__pycache__/
+# Entornos virtuales
+venv/
+env/
+ENV/
 .venv/
-.vscode/
-.cache
+
+# Archivos de configuración y credenciales sensibles
 .env
-pyvenv.cfg
+*.env
+*.pem
+*.key
+*.cert
 cookies.txt
-./cancion.json
-cancion.json
+
+# Cache y archivos compilados de Python
+__pycache__/
+*.py[cod]
+*$py.class
+.cache/
+
+# Datos persistentes locales y logs
+data/*
+!data/.gitkeep
+*.log
+
+# Sistema operativo e IDEs
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+src.md
+main.md
