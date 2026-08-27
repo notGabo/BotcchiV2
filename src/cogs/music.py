@@ -4,6 +4,7 @@ from src.services.yt_handler import YTDLSource
 from src.services.spotify_handler import SpotifyHandler
 from src.services.lyrics_handler import LyricsHandler
 from src.utils.embed_builder import EmbedBuilder
+import asyncio
 
 
 class MusicState:
@@ -60,34 +61,6 @@ class Music(commands.Cog):
         else:
             state.current = None
 
-    @commands.command(name="play")
-    async def play(self, ctx, *, query: str):
-        if not ctx.author.voice:
-            return await ctx.send(embed=EmbedBuilder.error("Debes estar en un canal de voz."))
-
-        # Conectar al canal si no está conectado
-        if not ctx.voice_client:
-            await ctx.author.voice.channel.connect()
-
-        try:
-            async with ctx.typing():
-                info = await YTDLSource.extract_info(query)
-                state = self.get_state(ctx.guild.id)
-                item = {'info': info, 'requester': ctx.author.name}
-
-                # Añadir siempre el item a la cola primero
-                state.queue.append(item)
-
-                if ctx.voice_client.is_playing() or state.current:
-                    content_text = (f"Se ha añadido la canción a la cola: {info['title']} - "
-                                    f"{info['uploader']} ({info['duration_str']})")
-                    embed = EmbedBuilder.now_playing(info, ctx.author.name)
-                    await ctx.send(content=content_text, embed=embed)
-                else:
-                    await self.play_next(ctx)
-        except RuntimeError as exc:
-            await ctx.send(embed=EmbedBuilder.error(str(exc)))
-
     @commands.command(name="playlist")
     async def playlist(self, ctx, url: str):
         if not ctx.author.voice:
@@ -98,27 +71,80 @@ class Music(commands.Cog):
 
         try:
             async with ctx.typing():
+                status_msg = await ctx.send(
+                    embed=EmbedBuilder.info("Cargando Playlist", "Obteniendo la lista de canciones...")
+                )
+
+                # 1. Obtener la lista plana de URLs / búsquedas
                 tracks = []
                 if self.spotify.is_spotify_url(url):
                     tracks = self.spotify.get_tracks(url)
+                elif "list=" in url or "playlist" in url:
+                    tracks = await YTDLSource.extract_playlist(url)
                 else:
                     tracks = [url]
 
-                state = self.get_state(ctx.guild.id)
-                successfully_added = 0
-                for track in tracks:
-                    try:
-                        info = await YTDLSource.extract_info(track)
-                        state.queue.append({'info': info, 'requester': ctx.author.name})
-                        successfully_added += 1
-                    except RuntimeError as exc:
-                        await ctx.send(embed=EmbedBuilder.error(f"No se pudo añadir una canción: {track}\n{exc}"))
+                if not tracks:
+                    return await status_msg.edit(
+                        embed=EmbedBuilder.error("No se encontraron canciones en la lista proporcionada.")
+                    )
 
-                await ctx.send(embed=EmbedBuilder.info("Playlist Cargada", f"Se añadieron {successfully_added} canciones a la cola."))
-                if not ctx.voice_client.is_playing() and not state.current and successfully_added:
-                    await self.play_next(ctx)
+                state = self.get_state(ctx.guild.id)
+                total_tracks = len(tracks)
+
+                # 2. Procesar la primera canción inmediatamente para iniciar la música sin demora
+                first_track = tracks[0]
+                try:
+                    first_info = await YTDLSource.extract_info(first_track)
+                    state.queue.append({'info': first_info, 'requester': ctx.author.name})
+                    if not ctx.voice_client.is_playing() and not state.current:
+                        await self.play_next(ctx)
+                except Exception as exc:
+                    print(f"[Music] Error al procesar primera canción: {exc}")
+
+                # 3. Si hay más canciones, extraer el resto en paralelo (lote de 5 a la vez)
+                if total_tracks > 1:
+                    await status_msg.edit(
+                        embed=EmbedBuilder.info(
+                            "Cargando Playlist en paralelo...",
+                            f"Procesando {total_tracks - 1} canciones restantes..."
+                        )
+                    )
+
+                    # Semáforo para limitar a 5 extracciones simultáneas (evita bloqueo de IP y saturación)
+                    semaphore = asyncio.Semaphore(5)
+
+                    async def fetch_track(track):
+                        async with semaphore:
+                            try:
+                                info = await YTDLSource.extract_info(track)
+                                return {'info': info, 'requester': ctx.author.name}
+                            except Exception as exc:
+                                print(f"[Music] Error procesando canción en playlist ({track}): {exc}")
+                                return None
+
+                    # asyncio.gather mantiene el orden exacto de la lista
+                    results = await asyncio.gather(*(fetch_track(t) for t in tracks[1:]))
+
+                    # Filtrar canciones fallidas y añadirlas a la cola en bloque
+                    valid_items = [item for item in results if item is not None]
+                    state.queue.extend(valid_items)
+
+                    added_count = len(valid_items) + (1 if 'first_info' in locals() else 0)
+                else:
+                    added_count = 1
+
+                await status_msg.edit(
+                    embed=EmbedBuilder.info(
+                        "Playlist Cargada",
+                        f"Se añadieron exitosamente **{added_count}** de **{total_tracks}** canciones a la cola."
+                    )
+                )
+
         except RuntimeError as exc:
             await ctx.send(embed=EmbedBuilder.error(str(exc)))
+        except Exception as exc:
+            await ctx.send(embed=EmbedBuilder.error(f"Error al cargar la playlist: {exc}"))
 
     @commands.command(name="skip")
     async def skip(self, ctx):
@@ -143,14 +169,17 @@ class Music(commands.Cog):
         state.queue.clear()
         await ctx.send(embed=EmbedBuilder.info("Cola limpiada", "Se han eliminado todas las canciones de la cola."))
 
-    @commands.command(name="queue")
+    @commands.command(name="queue", aliases=["q"])
     async def queue(self, ctx):
         state = self.get_state(ctx.guild.id)
-        if not state.queue:
-            return await ctx.send(embed=EmbedBuilder.info("Cola vacía", "No hay canciones en la cola."))
+        
+        if not state.current and not state.queue:
+            return await ctx.send(
+                embed=EmbedBuilder.info("Cola de reproducción", "No hay ninguna canción reproduciéndose ni en la cola.")
+            )
 
-        description = "".join([f"`{i+1}.` {item['info']['title']}" for i, item in enumerate(state.queue[:10])])
-        await ctx.send(embed=EmbedBuilder.info("Cola de reproducción", description))
+        embed = EmbedBuilder.queue(state.current, state.queue)
+        await ctx.send(embed=embed)
 
     @commands.command(name="np")
     async def np(self, ctx):

@@ -59,7 +59,6 @@ class YTDLSource:
 
         for index, attempt in enumerate(attempts, start=1):
             try:
-                # Si es un reintento (ej. restricción de edad en el 1er intento), notificar a Discord
                 if status_callback and index > 1:
                     await status_callback(
                         f"⚠️ **Restricción de edad / error detectado.**\nReintentando ({index}/{total_attempts}) con búsqueda alternativa: `{attempt}`..."
@@ -103,3 +102,55 @@ class YTDLSource:
             ) from last_error
 
         raise RuntimeError(f"No se pudo obtener la canción: {query}.")
+
+    @classmethod
+    async def extract_playlist(cls, url: str) -> list[str]:
+        """Extrae la lista de URLs de vídeos de una playlist o Mix de YouTube."""
+        opts = {
+            'extract_flat': 'in_playlist',
+            'skip_download': True,
+            'quiet': True,
+            'no_warnings': True,
+            'ignoreerrors': True,
+        }
+        if COOKIES_FILE:
+            opts['cookiefile'] = COOKIES_FILE
+        elif COOKIES_BROWSER:
+            opts['cookiesfrombrowser'] = (COOKIES_BROWSER,)
+
+        loop = asyncio.get_event_loop()
+
+        def _get_playlist():
+            with yt_dlp.YoutubeDL(opts) as ytdl:
+                return ytdl.extract_info(url, download=False)
+
+        try:
+            data = await loop.run_in_executor(None, _get_playlist)
+        except Exception as exc:
+            raise RuntimeError(f"Error al leer la playlist de YouTube: {exc}")
+
+        if not data:
+            raise RuntimeError("La playlist de YouTube no devolvió resultados.")
+
+        tracks = []
+        entries = data.get('entries', [])
+        if not entries and ('url' in data or 'webpage_url' in data):
+            tracks.append(data.get('webpage_url') or data.get('url'))
+            return tracks
+
+        for entry in entries:
+            if not entry:
+                continue
+            video_url = entry.get('url') or entry.get('webpage_url')
+            if video_url and not video_url.startswith('http'):
+                video_url = f"https://www.youtube.com/watch?v={video_url}"
+            elif not video_url and entry.get('id'):
+                video_url = f"https://www.youtube.com/watch?v={entry['id']}"
+
+            if video_url:
+                tracks.append(video_url)
+
+        if not tracks:
+            raise RuntimeError("No se encontraron canciones válidas en la playlist.")
+
+        return tracks
