@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from src.config import BOT_SERVIDORES_MANTENER_CONECTADO
 from src.services.yt_handler import YTDLSource
 from src.services.spotify_handler import SpotifyHandler
 from src.services.lyrics_handler import LyricsHandler
@@ -24,6 +25,11 @@ class Music(commands.Cog):
         self.bot = bot
         self.states = {}
         self.spotify = SpotifyHandler()
+
+    def should_keep_connected(self, guild_id):
+        if not BOT_SERVIDORES_MANTENER_CONECTADO:
+            return True
+        return guild_id in BOT_SERVIDORES_MANTENER_CONECTADO
 
     def get_state(self, guild_id):
         if guild_id not in self.states:
@@ -60,6 +66,8 @@ class Music(commands.Cog):
             await ctx.send(content=content_text, embed=embed)
         else:
             state.current = None
+            if ctx.voice_client and ctx.voice_client.is_connected() and not self.should_keep_connected(ctx.guild.id):
+                await ctx.voice_client.disconnect()
 
     @commands.command(name="play", aliases=["p"])
     async def play(self, ctx, *, query: str):

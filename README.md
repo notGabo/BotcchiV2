@@ -40,11 +40,14 @@ APP_ID=tu_app_id
 PUBLIC_KEY=tu_public_key
 BOT_URL_INVITACION=https://discord.com/api/oauth2/authorize?...
 BOT_SERVIDORES_PERMITIDOS=123456789012345678,987654321098765432
+BOT_SERVIDORES_MANTENER_CONECTADO=123456789012345678
 SPOTIFY_CLIENT_ID=tu_spotify_client_id
 SPOTIFY_CLIENT_SECRET=tu_spotify_client_secret
 COOKIES_BROWSER=
 COOKIES_FILE=data/cookies.txt
 ```
+
+Si `BOT_SERVIDORES_MANTENER_CONECTADO` queda vacío, el bot conserva el comportamiento actual y se mantiene conectado en todos los servidores donde pueda reproducir música. Si añades una lista, solo esos servidores conservarán la conexión al terminar la cola; en el resto se desconectará automáticamente.
 
 ---
 
