@@ -22,10 +22,11 @@ class General(commands.Cog):
             "🔹ping": "Responde con 'Pong!' y la latencia actual del bot.",
             "🔹play [canción o url]": "Reproduce una canción de YouTube o busca por palabras clave.",
             "🔹playlist [url]": "Carga y añade a la cola una lista de reproducción de YouTube o Spotify.",
-            "🔹skip": "Salta a la siguiente canción en la cola.",
+            "🔹skip [indice]": "Salta a la siguiente canción o avanza directamente a una posición de la cola.",
+            "🔹move [origen] [destino]": "Reordena una canción dentro de la cola de reproducción.",
             "🔹stop": "Detiene la música, limpia la cola y desconecta al bot del canal de voz.",
             "🔹clear": "Limpia la cola de reproducción en caso de problemas.",
-            "🔹queue": "Muestra las canciones en la cola de reproducción.",
+            "🔹queue": "Muestra la cola de reproducción con paginación por emojis.",
             "🔹np": "Muestra la canción que se está reproduciendo actualmente.",
             "🔹lyrics": "[WIP] Muestra la letra de la canción en reproducción."
         }

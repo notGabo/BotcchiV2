@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 import os
+from math import ceil
 from src.config import BOT_SERVIDORES_MANTENER_CONECTADO
 from src.services.yt_handler import YTDLSource
 from src.services.spotify_handler import SpotifyHandler
@@ -48,6 +49,7 @@ class Music(commands.Cog):
 
         status_msg = await ctx.send(embed=EmbedBuilder.info(status_title, status_message))
         state = self.get_state(ctx.guild.id)
+        had_queue_items = bool(state.current or state.queue)
         total_tracks = len(tracks)
         state.loading = True
 
@@ -95,12 +97,19 @@ class Music(commands.Cog):
             else:
                 added_count = 1 if first_info is not None else 0
 
-            await status_msg.edit(
-                embed=EmbedBuilder.info(
-                    "Contenido cargado",
-                    f"Se añadieron exitosamente **{added_count}** de **{total_tracks}** canciones a la cola."
+            if had_queue_items:
+                suffix = "canción" if added_count == 1 else "canciones"
+                await status_msg.edit(
+                    embed=EmbedBuilder.info(
+                        "Cola actualizada",
+                        f"Se añadieron exitosamente **{added_count}** {suffix} más a la cola."
+                    )
                 )
-            )
+            else:
+                try:
+                    await status_msg.delete()
+                except Exception:
+                    pass
 
         finally:
             state.loading = False
@@ -109,6 +118,103 @@ class Music(commands.Cog):
         if guild_id not in self.states:
             self.states[guild_id] = MusicState()
         return self.states[guild_id]
+
+    def build_queue_embed(self, state, page: int = 1, per_page: int = 8):
+        queue_list = state.queue
+        total_pages = max(1, ceil(len(queue_list) / per_page))
+        page = max(1, min(page, total_pages))
+
+        embed = discord.Embed(
+            title="Lista de canciones en la cola",
+            color=discord.Color.green()
+        )
+
+        current = state.current
+        if current and current.get('info', {}).get('thumbnail'):
+            embed.set_thumbnail(url=current['info']['thumbnail'])
+
+        current_title = current['info']['title'] if current else "None"
+        lines = [f"Reproduciendo ahora: **{current_title}**\n"]
+
+        start_index = (page - 1) * per_page
+        page_items = queue_list[start_index:start_index + per_page]
+
+        if not page_items:
+            lines.append("*No hay más canciones en la cola.*")
+        else:
+            for absolute_index, item in enumerate(page_items, start=start_index + 1):
+                info = item.get('info', {})
+                requester = item.get('requester', 'Desconocido')
+                title = info.get('title', 'Sin título')
+                uploader = info.get('uploader', 'Desconocido')
+                duration = info.get('duration_str', '0:00')
+
+                lines.append(
+                    f"`{absolute_index}`. **{title}**\n"
+                    f"Artista: {uploader} | Duración: {duration} | Solicitado por: {requester}"
+                )
+
+        embed.description = "\n\n".join(lines)
+        if total_pages > 1:
+            embed.set_footer(text=f"Página {page}/{total_pages} | Reacciona con ◀️ ▶️ y ⏹️")
+        return embed, total_pages
+
+    async def paginate_queue(self, ctx):
+        state = self.get_state(ctx.guild.id)
+        embed, total_pages = self.build_queue_embed(state, page=1)
+        message = await ctx.send(embed=embed)
+
+        if total_pages <= 1:
+            return
+
+        controls = {"◀️": -1, "▶️": 1, "⏹️": 0}
+        for emoji in controls:
+            try:
+                await message.add_reaction(emoji)
+            except Exception:
+                pass
+
+        current_page = 1
+
+        def check(reaction, user):
+            return (
+                user == ctx.author
+                and reaction.message.id == message.id
+                and str(reaction.emoji) in controls
+            )
+
+        while True:
+            try:
+                reaction, user = await self.bot.wait_for("reaction_add", timeout=60, check=check)
+            except asyncio.TimeoutError:
+                try:
+                    await message.clear_reactions()
+                except Exception:
+                    pass
+                break
+
+            emoji = str(reaction.emoji)
+            if emoji == "⏹️":
+                try:
+                    await message.clear_reactions()
+                except Exception:
+                    pass
+                break
+
+            if emoji == "◀️" and current_page > 1:
+                current_page -= 1
+            elif emoji == "▶️" and current_page < total_pages:
+                current_page += 1
+            else:
+                continue
+
+            embed, _ = self.build_queue_embed(state, page=current_page)
+            await message.edit(embed=embed)
+
+            try:
+                await message.remove_reaction(reaction.emoji, user)
+            except Exception:
+                pass
 
     async def play_next(self, ctx, announce: bool = True):
         state = self.get_state(ctx.guild.id)
@@ -150,7 +256,18 @@ class Music(commands.Cog):
             item['file_path'] = await YTDLSource.download_audio_file(source)
             audio_source = discord.FFmpegPCMAudio(item['file_path'], options=FFMPEG_OPTIONS['options'])
         except Exception as exc:
-            print(f"[Music] No se pudo crear la fuente de audio: {exc}")
+            error_message = str(exc)
+            print(f"[Music] No se pudo crear la fuente de audio: {error_message}")
+
+            if "403" in error_message or "Forbidden" in error_message:
+                failed_title = item['info'].get('title', 'Desconocido')
+                await ctx.send(
+                    embed=EmbedBuilder.error(
+                        f"No se pudo reproducir **{failed_title}**.\n\n"
+                        f"Detalle técnico: el servicio remoto devolvió **HTTP 403 Forbidden** al intentar obtener el audio."
+                    )
+                )
+
             asyncio.run_coroutine_threadsafe(self.play_next(ctx, announce=False), self.bot.loop)
             return
 
@@ -259,12 +376,69 @@ class Music(commands.Cog):
             await ctx.send(embed=EmbedBuilder.error(f"Error al cargar la playlist: {exc}"))
 
     @commands.command(name="skip")
-    async def skip(self, ctx):
+    async def skip(self, ctx, index: int = None):
+        state = self.get_state(ctx.guild.id)
+
+        if index is not None and index < 0:
+            return await ctx.send(embed=EmbedBuilder.error("El índice debe ser un número positivo."))
+
+        if index is None or index == 0:
+            if ctx.voice_client and ctx.voice_client.is_playing():
+                ctx.voice_client.stop()
+                await ctx.send(embed=EmbedBuilder.info("Skip", "Canción saltada."))
+            else:
+                await ctx.send(embed=EmbedBuilder.error("No hay nada reproduciéndose."))
+            return
+
+        if not state.current and not state.queue:
+            return await ctx.send(embed=EmbedBuilder.error("No hay ninguna canción en cola."))
+
+        if index > len(state.queue) + 1:
+            return await ctx.send(
+                embed=EmbedBuilder.error(
+                    f"El índice **{index}** no existe en la cola actual."
+                )
+            )
+
+        if index > 1:
+            state.queue = state.queue[index - 1:]
+
         if ctx.voice_client and ctx.voice_client.is_playing():
             ctx.voice_client.stop()
-            await ctx.send(embed=EmbedBuilder.info("Skip", "Canción saltada."))
+            await ctx.send(embed=EmbedBuilder.info("Skip", f"Saltando hasta la canción en posición **{index}**."))
         else:
-            await ctx.send(embed=EmbedBuilder.error("No hay nada reproduciéndose."))
+            await self.play_next(ctx)
+            await ctx.send(embed=EmbedBuilder.info("Skip", f"Saltando hasta la canción en posición **{index}**."))
+
+    @commands.command(name="move")
+    async def move(self, ctx, from_index: int, to_index: int):
+        state = self.get_state(ctx.guild.id)
+
+        if from_index < 1 or to_index < 1:
+            return await ctx.send(embed=EmbedBuilder.error("Usa posiciones positivas empezando desde 1."))
+
+        queue_length = len(state.queue)
+        if queue_length == 0:
+            return await ctx.send(embed=EmbedBuilder.error("No hay canciones en la cola para mover."))
+
+        if from_index > queue_length or to_index > queue_length:
+            return await ctx.send(
+                embed=EmbedBuilder.error(
+                    f"La cola actual solo tiene **{queue_length}** canciones en espera."
+                )
+            )
+
+        if from_index == to_index:
+            return await ctx.send(embed=EmbedBuilder.info("Move", "La canción ya está en esa posición."))
+
+        item = state.queue.pop(from_index - 1)
+        state.queue.insert(to_index - 1, item)
+        await ctx.send(
+            embed=EmbedBuilder.info(
+                "Cola reordenada",
+                f"La canción de la posición **{from_index}** se movió a la posición **{to_index}**."
+            )
+        )
 
     @commands.command(name="stop")
     async def stop(self, ctx):
@@ -290,8 +464,7 @@ class Music(commands.Cog):
                 embed=EmbedBuilder.info("Cola de reproducción", "No hay ninguna canción reproduciéndose ni en la cola.")
             )
 
-        embed = EmbedBuilder.queue(state.current, state.queue)
-        await ctx.send(embed=embed)
+        await self.paginate_queue(ctx)
 
     @commands.command(name="np")
     async def np(self, ctx):
