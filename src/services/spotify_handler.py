@@ -19,7 +19,7 @@ class SpotifyHandler:
 
     def extract_spotify_id(self, url: str) -> tuple[str | None, str | None]:
         """Extrae el tipo (track, playlist, album) y el ID limpio eliminando parámetros de URL."""
-        match = re.search(r'open\.spotify\.com/(track|playlist|album)/([a-zA-Z0-9]+)', url)
+        match = re.search(r'open\.spotify\.com/(?:intl-[a-z]{2}/)?(track|playlist|album)/([a-zA-Z0-9]+)', url)
         if match:
             return match.group(1), match.group(2)
         return None, None
@@ -41,7 +41,7 @@ class SpotifyHandler:
                 track = self.sp.track(item_id)
                 if track and 'name' in track:
                     artists = ", ".join([artist['name'] for artist in track.get('artists', []) if 'name' in artist])
-                    search_queries.append(f"{track['name']} {artists}")
+                    search_queries.append(f"{track['name']} {artists} topic")
 
             elif item_type == "playlist":
                 results = self.sp.playlist_items(item_id)
@@ -52,7 +52,7 @@ class SpotifyHandler:
                         track = item.get('track')
                         if track and track.get('name') and track.get('type') == 'track':
                             artists = ", ".join([artist['name'] for artist in track.get('artists', []) if 'name' in artist])
-                            search_queries.append(f"{track['name']} {artists}")
+                            search_queries.append(f"{track['name']} {artists} topic")
                     results = self.sp.next(results) if results.get('next') else None
 
             elif item_type == "album":
@@ -61,7 +61,7 @@ class SpotifyHandler:
                     for item in results.get('items', []):
                         if item and item.get('name'):
                             artists = ", ".join([artist['name'] for artist in item.get('artists', []) if 'name' in artist])
-                            search_queries.append(f"{item['name']} {artists}")
+                            search_queries.append(f"{item['name']} {artists} topic")
                     results = self.sp.next(results) if results.get('next') else None
 
         except Exception as exc:

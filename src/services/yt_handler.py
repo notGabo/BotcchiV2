@@ -1,4 +1,6 @@
 import asyncio
+import os
+import tempfile
 import yt_dlp
 from src.config import COOKIES_FILE, COOKIES_BROWSER
 
@@ -38,9 +40,17 @@ class YTDLSource:
         prepared = query.strip()
         if not prepared:
             return prepared
+
+        lowered = prepared.lower()
+        if lowered.startswith(("http://", "https://", "ytsearch:", "ytsearch1:", "ytsearchdate:")):
+            return prepared
+
+        prepared = prepared.replace(":", " ")
+        prepared = " ".join(prepared.split())
         lowered = prepared.lower()
         if add_topic and not lowered.endswith(' topic'):
-            return f"{prepared} topic"
+            prepared = f"{prepared} topic"
+
         return prepared
 
     @classmethod
@@ -87,7 +97,8 @@ class YTDLSource:
                     'title': data.get('title', 'Desconocido'),
                     'thumbnail': data.get('thumbnail', ''),
                     'duration_str': f"{mins}:{secs:02d}",
-                    'uploader': data.get('uploader', 'Canal Desconocido')
+                    'uploader': data.get('uploader', 'Canal Desconocido'),
+                    'http_headers': data.get('http_headers', {})
                 }
             except Exception as exc:
                 last_error = exc
@@ -102,6 +113,37 @@ class YTDLSource:
             ) from last_error
 
         raise RuntimeError(f"No se pudo obtener la canción: {query}.")
+
+    @classmethod
+    async def download_audio_file(cls, source_url: str) -> str:
+        loop = asyncio.get_event_loop()
+        temp_dir = tempfile.mkdtemp(prefix="botcchi-audio-")
+
+        def _download():
+            options = {
+                'format': 'bestaudio/best',
+                'restrictfilenames': True,
+                'noplaylist': True,
+                'nocheckcertificate': True,
+                'quiet': True,
+                'no_warnings': True,
+                'default_search': 'ytsearch',
+                'source_address': '0.0.0.0',
+                'outtmpl': os.path.join(temp_dir, '%(id)s.%(ext)s'),
+            }
+
+            with yt_dlp.YoutubeDL(options) as ytdl:
+                data = ytdl.extract_info(source_url, download=True)
+
+                if 'entries' in data:
+                    data = data['entries'][0]
+
+                if not data:
+                    raise RuntimeError("No se pudo descargar el audio.")
+
+                return ytdl.prepare_filename(data)
+
+        return await loop.run_in_executor(None, _download)
 
     @classmethod
     async def extract_playlist(cls, url: str) -> list[str]:
