@@ -31,7 +31,11 @@ async def on_command_error(ctx, error):
         bot_name = bot.user.name if bot.user else "Botcchi"
         if ctx.guild and BOT_SERVIDORES_PERMITIDOS and ctx.guild.id not in BOT_SERVIDORES_PERMITIDOS:
             await ctx.send(
-                f"Este servidor no se encuentra en mi whitelist. Contacta al mantenedor de {bot_name}."
+                embed=discord.Embed(
+                    title="Servidor no autorizado",
+                    description=f"Este servidor no se encuentra en mi whitelist. Contacta al mantenedor de {bot_name}.",
+                    color=discord.Color.red()
+                )
             )
         return
 
