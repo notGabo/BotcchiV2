@@ -27,6 +27,14 @@ async def on_ready():
 @bot.event
 async def on_command_error(ctx, error):
     """Captura cualquier excepción no controlada en los comandos y muestra el log."""
+    if isinstance(error, commands.CheckFailure):
+        bot_name = bot.user.name if bot.user else "Botcchi"
+        if ctx.guild and BOT_SERVIDORES_PERMITIDOS and ctx.guild.id not in BOT_SERVIDORES_PERMITIDOS:
+            await ctx.send(
+                f"Este servidor no se encuentra en mi whitelist. Contacta al mantenedor de {bot_name}."
+            )
+        return
+
     logger.error(f"Error al ejecutar el comando '{ctx.command}': {error}")
     traceback.print_exception(type(error), error, error.__traceback__)
 
