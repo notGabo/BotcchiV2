@@ -35,6 +35,14 @@ class YTDLSource:
 
     ytdl = yt_dlp.YoutubeDL(YTDL_OPTIONS)
 
+    @classmethod
+    def _apply_cookie_options(cls, options: dict) -> dict:
+        if COOKIES_FILE:
+            options['cookiefile'] = COOKIES_FILE
+        elif COOKIES_BROWSER:
+            options['cookiesfrombrowser'] = (COOKIES_BROWSER,)
+        return options
+
     @staticmethod
     def _build_search_query(query: str, add_topic: bool = False) -> str:
         prepared = query.strip()
@@ -120,7 +128,7 @@ class YTDLSource:
         temp_dir = tempfile.mkdtemp(prefix="botcchi-audio-")
 
         def _download():
-            options = {
+            options = cls._apply_cookie_options({
                 'format': 'bestaudio/best',
                 'restrictfilenames': True,
                 'noplaylist': True,
@@ -130,7 +138,7 @@ class YTDLSource:
                 'default_search': 'ytsearch',
                 'source_address': '0.0.0.0',
                 'outtmpl': os.path.join(temp_dir, '%(id)s.%(ext)s'),
-            }
+            })
 
             with yt_dlp.YoutubeDL(options) as ytdl:
                 data = ytdl.extract_info(source_url, download=True)
