@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  discord-music-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: discord-music-bot:latest
+    container_name: discord_music_bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./.env:/app/.env:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 768M
+        reservations:
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
